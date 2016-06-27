@@ -46,7 +46,7 @@ def recurrence(y_i, h):
                   output=[gru(expanded_h)])  # (batch_size, 1, output_dim)
     return model(recurrence_result)
 
-# output, _ = theano.scan(recurrence,
-#                         sequences=K.permute_dimensions(y, [1, 0, 2]),
-#                         non_sequences=s)
+output, _ = theano.scan(recurrence,
+                        sequences=K.permute_dimensions(y, [1, 0, 2]),
+                        non_sequences=h)
 print(K.eval(recurrence(y_i, h)))
