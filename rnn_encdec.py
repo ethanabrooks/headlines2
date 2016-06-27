@@ -46,7 +46,13 @@ def recurrence(y_i, h):
                   output=[gru(expanded_h)])  # (batch_size, 1, output_dim)
     return model(recurrence_result)
 
+
 output, _ = theano.scan(recurrence,
                         sequences=K.permute_dimensions(y, [1, 0, 2]),
                         non_sequences=h)
+
+layer = Lambda(lambda encoded_state: output,
+               output_shape=(batch_size, output_dim))
+layer.build(h.shape)
+print(K.eval(layer(h)))
 print(K.eval(recurrence(y_i, h)))
