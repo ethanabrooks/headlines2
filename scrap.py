@@ -12,6 +12,7 @@ output_length = 5
 output_dim = 6
 
 y_i = K.variable(np.ones((batch_size, encoding_dim)))
+y = K.variable(np.ones((batch_size, input_length, encoding_dim)))
 c = K.variable(np.ones((batch_size, input_length, encoding_dim)))
 
 h = K.variable(np.ones((batch_size, input_length, encoding_dim)))
@@ -30,24 +31,28 @@ def recurrence(y_i, h):
     # eqn 5
     c = K.batch_dot(h, alpha, axes=1)  # (batch_size, encoding_dim)
 
-    dim_ = [c, y_i]
-    return dim_
-    # recurrence_result = K.concatenate(dim_,
-    #                                   axis=1),  # (batch_size, 1, 2 * encoding_dim)
-    # expanded_h = Input(shape=(1, 2 * encoding_dim),
-    #                    name='expanded_h')
-    # gru = Sequential([
-    #     GRU(output_dim,
-    #         return_sequences=False,
-    #         input_shape=(1, 2 * encoding_dim))
-    # ])
-    # model = Model(input=[expanded_h],
-    #               output=[gru(expanded_h)])  # (batch_size, 1, output_dim)
-    # return model(recurrence_result)
+    recurrence_result = K.expand_dims(
+        K.concatenate([c, y_i], axis=1),
+        dim=1)  # (batch_size, 1, 2 * encoding_dim)
 
-# output, _ = theano.scan(recurrence,
-#                         sequences=y,
-#                         non_sequences=s)
-for result in recurrence(y_i, h):
-    print('-' * 10)
-    print(K.eval(result))
+    expanded_h = Input(shape=(1, 2 * encoding_dim),
+                       name='expanded_h')
+    gru = Sequential([
+        GRU(output_dim,
+            return_sequences=False,
+            input_shape=(1, 2 * encoding_dim))
+    ])
+    model = Model(input=[expanded_h],
+                  output=[gru(expanded_h)])  # (batch_size, 1, output_dim)
+    return model(recurrence_result)
+
+
+output, _ = theano.scan(recurrence,
+                        sequences=K.permute_dimensions(y, [1, 0, 2]),
+                        non_sequences=h)
+
+layer = Lambda(lambda encoded_state: output,
+               output_shape=(batch_size, output_dim))
+layer.build((input_length, encoding_dim))
+
+print(K.eval(layer(h)))
