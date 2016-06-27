@@ -29,6 +29,19 @@ s = K.variable(np.ones((batch_size, hidden_dim)))
 
 def decode_func(h, y):
     def recurrence(y_i, h):
+        expanded_h = Input(shape=(1, 2 * hidden_dim),
+                           name='expanded_h')
+        deep_gru = Sequential()
+        deep_gru.add(GRU(hidden_dim,
+                         input_shape=(1, 2 * hidden_dim),
+                         return_sequences=True))
+        for i in range(depth - 2):
+            deep_gru.add(GRU(hidden_dim,
+                             return_sequences=True,
+                             input_shape=(1, 2 * hidden_dim)))
+        deep_gru.add(GRU(output_dim))
+        model = Model(input=[expanded_h],
+                      output=[deep_gru(expanded_h)])  # (batch_size, 1, output_dim)
         h_permute = K.permute_dimensions(h, [0, 2, 1])  # (batch_size, encoding_dim, input_length)
         e = K.l2_normalize(
             K.batch_dot(h_permute, s, axes=1),  # (batch_size, input_length)
@@ -40,20 +53,10 @@ def decode_func(h, y):
         # eqn 5
         c = K.batch_dot(h, alpha, axes=1)  # (batch_size, encoding_dim)
 
-        recurrence_result = K.expand_dims(
+        input_per_timesteps = K.expand_dims(
             K.concatenate([c, y_i], axis=1),
             dim=1)  # (batch_size, 1, 2 * encoding_dim)
-
-        expanded_h = Input(shape=(1, 2 * hidden_dim),
-                           name='expanded_h')
-        gru = Sequential([
-            GRU(output_dim,
-                return_sequences=False,
-                input_shape=(1, 2 * hidden_dim))
-        ])
-        model = Model(input=[expanded_h],
-                      output=[gru(expanded_h)])  # (batch_size, 1, output_dim)
-        return model(recurrence_result)
+        return model(input_per_timesteps)
 
     output, _ = theano.scan(recurrence,
                             sequences=K.permute_dimensions(y, [1, 0, 2]),
