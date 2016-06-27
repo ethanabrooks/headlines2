@@ -19,7 +19,7 @@ Y_batch = np.zeros(batch_size * output_length, dtype=int).reshape(
     batch_size, output_length, )
 
 # y_i = K.variable(np.ones((batch_size, hidden_dim)))
-y = K.variable(np.ones((batch_size, input_length, hidden_dim)))
+# y = K.variable(np.ones((batch_size, output_length, hidden_dim)))
 
 # c = K.variable(np.ones((batch_size, input_length, hidden_dim)))
 #
@@ -37,8 +37,7 @@ def decode_func(h, y):
                          return_sequences=True))
         for i in range(depth - 2):
             deep_gru.add(GRU(hidden_dim,
-                             return_sequences=True,
-                             input_shape=(1, 2 * hidden_dim)))
+                             return_sequences=True))
         deep_gru.add(GRU(output_dim))
         model = Model(input=[expanded_h],
                       output=[deep_gru(expanded_h)])  # (batch_size, 1, output_dim)
@@ -64,14 +63,13 @@ def decode_func(h, y):
     return K.permute_dimensions(output, [1, 0, 2])
 
 
+x = Input(shape=(input_length,), dtype='int32', name='x')
+y = Input(shape=(output_length,), dtype='int32', name='y')
+embed = Embedding(voc_size, hidden_dim, input_length=input_length)
 decode = Lambda(decode_func,
                 output_shape=(batch_size, output_dim),
-                arguments={'y': y})
+                arguments={'y': embed(y)})
 decode.build((input_length, hidden_dim))
-
-x = Input(shape=(input_length,), dtype='int32', name='x')
-embed = Embedding(voc_size, hidden_dim, input_length=input_length)
-embed_lookup = embed(x)
 gru = GRU(hidden_dim,
           input_shape=(input_length, hidden_dim),
           unroll=True,
@@ -94,11 +92,11 @@ def model(train):
         reencode.add(decoder_unit())
 
     output = decode(hidden_state)
-    return Model(input=[x], output=output)
+    return Model(input=[x, y], output=output)
 
 
 train_model = model(train=True)
 test_model = model(train=False)
 train_model.compile(loss='binary_crossentropy',
                     optimizer='sgd')
-print(train_model.predict([X_batch]))  # , Y_batch]))
+print(train_model.predict([X_batch, Y_batch]))
